@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+import WhatsAppConsultas from "../components/WhatsAppConsultas";
+
 export const metadata: Metadata = {
   title: "ESTÉTICA GOLD | Turnos Online",
   description:
@@ -14,7 +16,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        {children}
+
+        <WhatsAppConsultas />
+      </body>
     </html>
   );
 }

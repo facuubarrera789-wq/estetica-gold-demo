@@ -16,6 +16,10 @@ type Turno = {
   estado: string;
   barbero_id: number;
   barbero_nombre: string;
+
+  fecha_propuesta: string | null;
+  hora_propuesta: string | null;
+  propuesta_enviada_at: string | null;
 };
 
 type ServicioAdmin = {
@@ -80,6 +84,116 @@ function claveAsignacion(
   return `${barberoId}-${servicioId}`;
 }
 
+function formatearFecha(
+  fecha: string
+) {
+  const [año, mes, dia] =
+    fecha.split("-");
+
+  if (!año || !mes || !dia) {
+    return fecha;
+  }
+
+  return `${dia}/${mes}/${año}`;
+}
+
+function prepararNumeroWhatsApp(
+  telefono: string
+) {
+  let numero =
+    telefono.replace(/\D/g, "");
+
+  numero =
+    numero.replace(/^0+/, "");
+
+  if (!numero) {
+    return "";
+  }
+
+  if (
+    numero.startsWith("549")
+  ) {
+    return numero;
+  }
+
+  if (
+    numero.startsWith("54")
+  ) {
+    return `549${numero.slice(
+      2
+    ).replace(/^9/, "")}`;
+  }
+
+  if (
+    numero.startsWith("9")
+  ) {
+    return `54${numero}`;
+  }
+
+  return `549${numero}`;
+}
+
+function crearLinkWhatsApp(
+  telefono: string,
+  mensaje: string
+) {
+  const numero =
+    prepararNumeroWhatsApp(
+      telefono
+    );
+
+  if (!numero) {
+    return "";
+  }
+
+  return `https://wa.me/${numero}?text=${encodeURIComponent(
+    mensaje
+  )}`;
+}
+
+function mensajePropuesta(
+  turno: Turno,
+  fechaNueva: string,
+  horaNueva: string
+) {
+  return (
+    `Hola ${turno.nombre} 👋\n\n` +
+    `Te escribimos de Estética Gold por tu turno de ${turno.servicio}.\n\n` +
+    `Necesitamos proponerte un cambio de horario:\n\n` +
+    `📅 Turno actual: ${formatearFecha(
+      turno.fecha
+    )} a las ${String(
+      turno.hora
+    ).slice(0, 5)}\n\n` +
+    `✨ Nuevo turno propuesto:\n` +
+    `📅 ${formatearFecha(
+      fechaNueva
+    )}\n` +
+    `🕐 ${horaNueva}\n` +
+    `👩 Profesional: ${turno.barbero_nombre}\n\n` +
+    `¿Podés confirmarnos por acá si te queda bien este nuevo día y horario?\n\n` +
+    `Muchas gracias 💛`
+  );
+}
+
+function mensajeConfirmacion(
+  turno: Turno,
+  fechaNueva: string,
+  horaNueva: string
+) {
+  return (
+    `Hola ${turno.nombre} 😊\n\n` +
+    `¡Perfecto! Te confirmamos que tu turno en Estética Gold quedó reprogramado correctamente.\n\n` +
+    `✨ Tratamiento: ${turno.servicio}\n` +
+    `👩 Profesional: ${turno.barbero_nombre}\n` +
+    `📅 Fecha: ${formatearFecha(
+      fechaNueva
+    )}\n` +
+    `🕐 Horario: ${horaNueva}\n\n` +
+    `¡Te esperamos! 💛`
+  );
+}
+
 export default function AdminAgenda({
   turnos = [],
   servicios = [],
@@ -88,24 +202,36 @@ export default function AdminAgenda({
 }: Props) {
   const router = useRouter();
 
-  const [filtro, setFiltro] =
-    useState<Filtro>("hoy");
+  const [
+    filtro,
+    setFiltro,
+  ] = useState<Filtro>(
+    "hoy"
+  );
 
-  const [busqueda, setBusqueda] =
-    useState("");
+  const [
+    busqueda,
+    setBusqueda,
+  ] = useState("");
 
-  const [precios, setPrecios] =
-    useState<Record<number, string>>(
-      () =>
-        Object.fromEntries(
-          servicios.map((servicio) => [
-            servicio.id,
-            String(
-              servicio.precio ?? 0
-            ),
-          ])
-        )
-    );
+  const [
+    precios,
+    setPrecios,
+  ] = useState<
+    Record<number, string>
+  >(() =>
+    Object.fromEntries(
+      servicios.map(
+        (servicio) => [
+          servicio.id,
+          String(
+            servicio.precio ??
+              0
+          ),
+        ]
+      )
+    )
+  );
 
   const [
     nombresServicios,
@@ -114,10 +240,12 @@ export default function AdminAgenda({
     Record<number, string>
   >(() =>
     Object.fromEntries(
-      servicios.map((servicio) => [
-        servicio.id,
-        servicio.nombre,
-      ])
+      servicios.map(
+        (servicio) => [
+          servicio.id,
+          servicio.nombre,
+        ]
+      )
     )
   );
 
@@ -128,13 +256,15 @@ export default function AdminAgenda({
     Record<number, string>
   >(() =>
     Object.fromEntries(
-      servicios.map((servicio) => [
-        servicio.id,
-        String(
-          servicio.duracion_minutos ??
-            60
-        ),
-      ])
+      servicios.map(
+        (servicio) => [
+          servicio.id,
+          String(
+            servicio.duracion_minutos ??
+              60
+          ),
+        ]
+      )
     )
   );
 
@@ -178,30 +308,30 @@ export default function AdminAgenda({
   const [
     procesandoAsignacion,
     setProcesandoAsignacion,
-  ] = useState<string | null>(
-    null
-  );
+  ] = useState<
+    string | null
+  >(null);
 
   const [
     procesandoServicio,
     setProcesandoServicio,
-  ] = useState<number | null>(
-    null
-  );
+  ] = useState<
+    number | null
+  >(null);
 
   const [
     procesandoHorario,
     setProcesandoHorario,
-  ] = useState<number | null>(
-    null
-  );
+  ] = useState<
+    number | null
+  >(null);
 
   const [
     procesandoProfesional,
     setProcesandoProfesional,
-  ] = useState<number | null>(
-    null
-  );
+  ] = useState<
+    number | null
+  >(null);
 
   const [
     agregandoProfesional,
@@ -213,11 +343,15 @@ export default function AdminAgenda({
     setCerrandoSesion,
   ] = useState(false);
 
-  const [mensaje, setMensaje] =
-    useState("");
+  const [
+    mensaje,
+    setMensaje,
+  ] = useState("");
 
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
   const hoy = obtenerHoy();
 
@@ -232,7 +366,8 @@ export default function AdminAgenda({
           (servicio) => [
             servicio.id,
             String(
-              servicio.precio ?? 0
+              servicio.precio ??
+                0
             ),
           ]
         )
@@ -285,7 +420,7 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudieron cargar los tratamientos de las profesionales"
+            "No se pudieron cargar las asignaciones"
         );
       }
 
@@ -306,14 +441,13 @@ export default function AdminAgenda({
               asignacion.barbero_id,
               asignacion.servicio_id
             )
-          ] = asignacion.activo;
+          ] =
+            asignacion.activo;
         }
       );
 
       setAsignaciones(mapa);
     } catch (err) {
-      console.error(err);
-
       setError(
         err instanceof Error
           ? err.message
@@ -358,60 +492,63 @@ export default function AdminAgenda({
     ).length;
 
   const turnosFiltrados =
-    turnos.filter((turno) => {
-      if (
-        filtro === "hoy" &&
-        !(
-          turno.estado ===
-            "confirmado" &&
-          turno.fecha === hoy
-        )
-      ) {
-        return false;
+    turnos.filter(
+      (turno) => {
+        if (
+          filtro === "hoy" &&
+          !(
+            turno.estado ===
+              "confirmado" &&
+            turno.fecha ===
+              hoy
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          filtro ===
+            "proximos" &&
+          !(
+            turno.estado ===
+              "confirmado" &&
+            turno.fecha > hoy
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          filtro ===
+            "historial" &&
+          !(
+            turno.estado ===
+              "confirmado" &&
+            turno.fecha < hoy
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          filtro ===
+            "cancelados" &&
+          turno.estado !==
+            "cancelado"
+        ) {
+          return false;
+        }
+
+        const texto =
+          `${turno.nombre} ${turno.apellido} ${turno.telefono} ${turno.barbero_nombre}`.toLowerCase();
+
+        return texto.includes(
+          busqueda
+            .trim()
+            .toLowerCase()
+        );
       }
-
-      if (
-        filtro ===
-          "proximos" &&
-        !(
-          turno.estado ===
-            "confirmado" &&
-          turno.fecha > hoy
-        )
-      ) {
-        return false;
-      }
-
-      if (
-        filtro ===
-          "historial" &&
-        !(
-          turno.estado ===
-            "confirmado" &&
-          turno.fecha < hoy
-        )
-      ) {
-        return false;
-      }
-
-      if (
-        filtro ===
-          "cancelados" &&
-        turno.estado !==
-          "cancelado"
-      ) {
-        return false;
-      }
-
-      const texto =
-        `${turno.nombre} ${turno.apellido} ${turno.telefono} ${turno.barbero_nombre}`.toLowerCase();
-
-      return texto.includes(
-        busqueda
-          .trim()
-          .toLowerCase()
-      );
-    });
+    );
 
   async function cerrarSesion() {
     setCerrandoSesion(true);
@@ -482,7 +619,7 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo actualizar el tratamiento"
+            "No se pudo actualizar"
         );
       }
 
@@ -503,7 +640,7 @@ export default function AdminAgenda({
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo actualizar la asignación"
+          : "No se pudo actualizar"
       );
     } finally {
       setProcesandoAsignacion(
@@ -526,18 +663,18 @@ export default function AdminAgenda({
       setError(
         "Ingresá el nombre del tratamiento."
       );
-
       return;
     }
 
     if (
-      !Number.isInteger(precio) ||
+      !Number.isInteger(
+        precio
+      ) ||
       precio < 0
     ) {
       setError(
         "Ingresá un precio válido."
       );
-
       return;
     }
 
@@ -550,7 +687,6 @@ export default function AdminAgenda({
       setError(
         "Ingresá una duración válida."
       );
-
       return;
     }
 
@@ -588,7 +724,7 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo agregar el tratamiento"
+            "No se pudo agregar"
         );
       }
 
@@ -597,7 +733,7 @@ export default function AdminAgenda({
       setNuevaDuracion("60");
 
       setMensaje(
-        `${resultado.servicio.nombre} agregado correctamente. Ahora podés asignárselo a las profesionales.`
+        `${resultado.servicio.nombre} agregado correctamente.`
       );
 
       router.refresh();
@@ -605,7 +741,7 @@ export default function AdminAgenda({
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo agregar el tratamiento"
+          : "No se pudo agregar"
       );
     } finally {
       setAgregandoTratamiento(
@@ -653,42 +789,9 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo actualizar el tratamiento"
+            "No se pudo actualizar"
         );
       }
-
-      setPrecios(
-        (actuales) => ({
-          ...actuales,
-
-          [id]: String(
-            resultado.servicio
-              .precio ?? 0
-          ),
-        })
-      );
-
-      setNombresServicios(
-        (actuales) => ({
-          ...actuales,
-
-          [id]:
-            resultado.servicio
-              .nombre,
-        })
-      );
-
-      setDuraciones(
-        (actuales) => ({
-          ...actuales,
-
-          [id]: String(
-            resultado.servicio
-              .duracion_minutos ??
-              60
-          ),
-        })
-      );
 
       setMensaje(
         `${resultado.servicio.nombre} actualizado correctamente.`
@@ -734,20 +837,20 @@ export default function AdminAgenda({
 
     if (!nombre) {
       setError(
-        "El nombre del tratamiento no puede estar vacío."
+        "El nombre no puede estar vacío."
       );
-
       return;
     }
 
     if (
-      !Number.isInteger(precio) ||
+      !Number.isInteger(
+        precio
+      ) ||
       precio < 0
     ) {
       setError(
         "Ingresá un precio válido."
       );
-
       return;
     }
 
@@ -760,7 +863,6 @@ export default function AdminAgenda({
       setError(
         "Ingresá una duración válida."
       );
-
       return;
     }
 
@@ -792,7 +894,7 @@ export default function AdminAgenda({
   ) {
     const confirmar =
       window.confirm(
-        `¿Eliminar definitivamente el tratamiento "${servicio.nombre}"?`
+        `¿Eliminar definitivamente "${servicio.nombre}"?`
       );
 
     if (!confirmar) {
@@ -830,7 +932,7 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo eliminar el tratamiento"
+            "No se pudo eliminar"
         );
       }
 
@@ -845,7 +947,7 @@ export default function AdminAgenda({
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo eliminar el tratamiento"
+          : "No se pudo eliminar"
       );
     } finally {
       setProcesandoServicio(
@@ -890,17 +992,12 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo actualizar el horario"
+            "No se pudo actualizar"
         );
       }
 
       setMensaje(
-        `Horario ${String(
-          resultado.horario.hora
-        ).slice(
-          0,
-          5
-        )} actualizado.`
+        "Horario actualizado correctamente."
       );
 
       router.refresh();
@@ -925,7 +1022,6 @@ export default function AdminAgenda({
       setError(
         "Ingresá el nombre de la profesional."
       );
-
       return;
     }
 
@@ -960,14 +1056,14 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo agregar la profesional"
+            "No se pudo agregar"
         );
       }
 
       setNuevoProfesional("");
 
       setMensaje(
-        `${resultado.barbero.nombre} agregada correctamente. Ahora podés asignarle sus tratamientos.`
+        `${resultado.barbero.nombre} agregada correctamente.`
       );
 
       router.refresh();
@@ -975,7 +1071,7 @@ export default function AdminAgenda({
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo agregar la profesional"
+          : "No se pudo agregar"
       );
     } finally {
       setAgregandoProfesional(
@@ -1020,7 +1116,7 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo actualizar la profesional"
+            "No se pudo actualizar"
         );
       }
 
@@ -1033,7 +1129,7 @@ export default function AdminAgenda({
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo actualizar la profesional"
+          : "No se pudo actualizar"
       );
     } finally {
       setProcesandoProfesional(
@@ -1085,7 +1181,7 @@ export default function AdminAgenda({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo eliminar la profesional"
+            "No se pudo eliminar"
         );
       }
 
@@ -1100,7 +1196,7 @@ export default function AdminAgenda({
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo eliminar la profesional"
+          : "No se pudo eliminar"
       );
     } finally {
       setProcesandoProfesional(
@@ -1114,7 +1210,7 @@ export default function AdminAgenda({
       <header className="border-b border-[#dfd1c0] bg-[#fffaf4]">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#c6a66b] bg-[#2d241f] text-sm font-black tracking-widest text-[#e4c382]">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#2d241f] font-black text-[#e4c382]">
               EG
             </div>
 
@@ -1145,7 +1241,7 @@ export default function AdminAgenda({
               disabled={
                 cerrandoSesion
               }
-              className="rounded-full border border-red-200 px-5 py-3 text-sm font-bold text-red-700 disabled:opacity-50"
+              className="rounded-full border border-red-200 px-5 py-3 text-sm font-bold text-red-700"
             >
               {cerrandoSesion
                 ? "Cerrando..."
@@ -1164,13 +1260,6 @@ export default function AdminAgenda({
           Panel Estética Gold
         </h1>
 
-        <p className="mt-3 max-w-2xl text-[#847469]">
-          Administrá profesionales,
-          tratamientos, precios,
-          horarios y turnos desde un
-          solo lugar.
-        </p>
-
         {mensaje && (
           <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-700">
             ✓ {mensaje}
@@ -1184,41 +1273,27 @@ export default function AdminAgenda({
         )}
 
         {/* PROFESIONALES */}
-        <section className="mt-10 rounded-[32px] border border-[#dfcfbb] bg-[#fffaf4] p-6 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#a47f43]">
-            Equipo
-          </p>
-
-          <h2 className="mt-2 text-2xl font-black">
+        <section className="mt-10 rounded-[32px] border border-[#dfcfbb] bg-[#fffaf4] p-6">
+          <h2 className="text-2xl font-black">
             Profesionales
           </h2>
 
           <p className="mt-2 text-sm text-[#8f7e72]">
-            Administrá el equipo y
-            elegí qué tratamientos
-            realiza cada profesional.
+            Administrá el equipo y asigná los tratamientos que realiza cada profesional.
           </p>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
             <input
               value={
                 nuevoProfesional
               }
-              onChange={(event) =>
+              onChange={(e) =>
                 setNuevoProfesional(
-                  event.target.value
+                  e.target.value
                 )
               }
-              onKeyDown={(event) => {
-                if (
-                  event.key ===
-                  "Enter"
-                ) {
-                  agregarProfesional();
-                }
-              }}
-              placeholder="Nombre de la nueva profesional"
-              className="flex-1 rounded-2xl border border-[#e4d6c6] bg-white p-4 outline-none transition focus:border-[#b58a45]"
+              placeholder="Nueva profesional"
+              className="flex-1 rounded-2xl border p-4"
             />
 
             <button
@@ -1229,19 +1304,16 @@ export default function AdminAgenda({
               disabled={
                 agregandoProfesional
               }
-              className="rounded-full bg-[#b58a45] px-6 py-4 font-black text-white disabled:opacity-50"
+              className="rounded-full bg-[#b58a45] px-6 py-3 font-black text-white"
             >
-              {agregandoProfesional
-                ? "AGREGANDO..."
-                : "+ AGREGAR PROFESIONAL"}
+              + AGREGAR
             </button>
           </div>
 
           {cargandoAsignaciones && (
-            <div className="mt-6 rounded-2xl bg-[#f7f2ea] p-4 text-sm text-[#8f7e72]">
-              Cargando tratamientos
-              de las profesionales...
-            </div>
+            <p className="mt-5">
+              Cargando...
+            </p>
           )}
 
           <div className="mt-6 grid gap-5 lg:grid-cols-3">
@@ -1251,112 +1323,73 @@ export default function AdminAgenda({
                   key={
                     profesional.id
                   }
-                  className={`rounded-3xl border p-5 ${
-                    profesional.activo
-                      ? "border-green-200 bg-green-50/40"
-                      : "border-red-200 bg-red-50/40"
-                  }`}
+                  className="rounded-3xl border bg-white p-5"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#efe3d2] text-2xl">
-                        ♡
-                      </div>
-
-                      <p className="mt-3 text-xl font-black">
-                        {
-                          profesional.nombre
-                        }
-                      </p>
-                    </div>
-
-                    <span
-                      className={
-                        profesional.activo
-                          ? "text-xs font-black text-green-700"
-                          : "text-xs font-black text-red-700"
+                  <div className="flex justify-between gap-3">
+                    <h3 className="text-xl font-black">
+                      {
+                        profesional.nombre
                       }
-                    >
+                    </h3>
+
+                    <span className="text-xs font-black">
                       {profesional.activo
                         ? "ACTIVA"
                         : "INACTIVA"}
                     </span>
                   </div>
 
-                  <div className="mt-5 rounded-2xl border border-[#e5d8c8] bg-white p-4">
-                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#a47f43]">
-                      Tratamientos que realiza
-                    </p>
-
-                    <div className="mt-4 space-y-3">
-                      {servicios.map(
-                        (servicio) => {
-                          const clave =
-                            claveAsignacion(
-                              profesional.id,
-                              servicio.id
-                            );
-
-                          const asignado =
-                            asignaciones[
-                              clave
-                            ] ??
-                            false;
-
-                          const procesando =
-                            procesandoAsignacion ===
-                            clave;
-
-                          return (
-                            <button
-                              key={
-                                servicio.id
-                              }
-                              type="button"
-                              onClick={() =>
-                                cambiarAsignacion(
-                                  profesional,
-                                  servicio
-                                )
-                              }
-                              disabled={
-                                procesando
-                              }
-                              className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:opacity-50 ${
-                                asignado
-                                  ? "border-[#c8a76d] bg-[#f4ead9]"
-                                  : "border-[#eadfd2] bg-[#faf7f2]"
-                              }`}
-                            >
-                              <div>
-                                <p className="text-sm font-bold">
-                                  {
-                                    servicio.nombre
-                                  }
-                                </p>
-
-                                {!servicio.activo && (
-                                  <p className="mt-1 text-[10px] font-bold text-red-600">
-                                    TRATAMIENTO
-                                    INACTIVO
-                                  </p>
-                                )}
-                              </div>
-
-                              <div
-                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-black ${
-                                  asignado
-                                    ? "border-[#b58a45] bg-[#b58a45] text-white"
-                                    : "border-[#d7c9b8] bg-white text-transparent"
-                                }`}
-                              >
-                                ✓
-                              </div>
-                            </button>
+                  <div className="mt-5 space-y-3">
+                    {servicios.map(
+                      (servicio) => {
+                        const clave =
+                          claveAsignacion(
+                            profesional.id,
+                            servicio.id
                           );
-                        }
-                      )}
-                    </div>
+
+                        const activo =
+                          asignaciones[
+                            clave
+                          ] ?? false;
+
+                        return (
+                          <button
+                            key={
+                              servicio.id
+                            }
+                            type="button"
+                            onClick={() =>
+                              cambiarAsignacion(
+                                profesional,
+                                servicio
+                              )
+                            }
+                            disabled={
+                              procesandoAsignacion ===
+                              clave
+                            }
+                            className={`flex w-full justify-between rounded-2xl border p-3 text-left ${
+                              activo
+                                ? "border-[#b58a45] bg-[#f4ead9]"
+                                : ""
+                            }`}
+                          >
+                            <span>
+                              {
+                                servicio.nombre
+                              }
+                            </span>
+
+                            <span>
+                              {activo
+                                ? "✓"
+                                : ""}
+                            </span>
+                          </button>
+                        );
+                      }
+                    )}
                   </div>
 
                   <button
@@ -1370,18 +1403,11 @@ export default function AdminAgenda({
                       procesandoProfesional ===
                       profesional.id
                     }
-                    className={`mt-5 w-full rounded-full py-3 font-black disabled:opacity-50 ${
-                      profesional.activo
-                        ? "bg-red-100 text-red-700"
-                        : "bg-green-100 text-green-700"
-                    }`}
+                    className="mt-4 w-full rounded-full bg-[#eee2d1] py-3 font-black"
                   >
-                    {procesandoProfesional ===
-                    profesional.id
-                      ? "GUARDANDO..."
-                      : profesional.activo
-                        ? "DESACTIVAR"
-                        : "ACTIVAR"}
+                    {profesional.activo
+                      ? "DESACTIVAR"
+                      : "ACTIVAR"}
                   </button>
 
                   <button
@@ -1395,7 +1421,7 @@ export default function AdminAgenda({
                       procesandoProfesional ===
                       profesional.id
                     }
-                    className="mt-3 w-full rounded-full border border-red-200 bg-white py-3 font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                    className="mt-3 w-full rounded-full border border-red-200 py-3 font-black text-red-700"
                   >
                     ELIMINAR
                   </button>
@@ -1406,68 +1432,50 @@ export default function AdminAgenda({
         </section>
 
         {/* TRATAMIENTOS */}
-        <section className="mt-8 rounded-[32px] border border-[#dfcfbb] bg-[#fffaf4] p-6 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#a47f43]">
-            Servicios
-          </p>
-
-          <h2 className="mt-2 text-2xl font-black">
+        <section className="mt-8 rounded-[32px] border border-[#dfcfbb] bg-[#fffaf4] p-6">
+          <h2 className="text-2xl font-black">
             Tratamientos y precios
           </h2>
 
-          <p className="mt-2 text-sm text-[#8f7e72]">
-            Agregá nuevos tratamientos,
-            editá nombre, precio y
-            duración, o eliminá los que
-            ya no uses.
-          </p>
-
-          {/* NUEVO TRATAMIENTO */}
-          <div className="mt-6 rounded-3xl border border-[#dac5a7] bg-[#f7f2ea] p-5">
-            <p className="font-black">
-              Agregar nuevo tratamiento
-            </p>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-6 rounded-3xl bg-[#f7f2ea] p-5">
+            <div className="grid gap-3 md:grid-cols-3">
               <input
                 value={
                   nuevoTratamiento
                 }
-                onChange={(event) =>
+                onChange={(e) =>
                   setNuevoTratamiento(
-                    event.target.value
+                    e.target.value
                   )
                 }
-                placeholder="Ej: Manicura"
-                className="rounded-2xl border border-[#e4d6c6] bg-white p-4 outline-none focus:border-[#b58a45]"
+                placeholder="Tratamiento"
+                className="rounded-2xl border bg-white p-4"
               />
 
               <input
                 type="number"
-                min="0"
                 value={nuevoPrecio}
-                onChange={(event) =>
+                onChange={(e) =>
                   setNuevoPrecio(
-                    event.target.value
+                    e.target.value
                   )
                 }
                 placeholder="Precio"
-                className="rounded-2xl border border-[#e4d6c6] bg-white p-4 outline-none focus:border-[#b58a45]"
+                className="rounded-2xl border bg-white p-4"
               />
 
               <input
                 type="number"
-                min="1"
                 value={
                   nuevaDuracion
                 }
-                onChange={(event) =>
+                onChange={(e) =>
                   setNuevaDuracion(
-                    event.target.value
+                    e.target.value
                   )
                 }
-                placeholder="Duración en minutos"
-                className="rounded-2xl border border-[#e4d6c6] bg-white p-4 outline-none focus:border-[#b58a45]"
+                placeholder="Duración"
+                className="rounded-2xl border bg-white p-4"
               />
             </div>
 
@@ -1479,11 +1487,9 @@ export default function AdminAgenda({
               disabled={
                 agregandoTratamiento
               }
-              className="mt-4 rounded-full bg-[#2d241f] px-7 py-4 font-black text-white disabled:opacity-50"
+              className="mt-4 rounded-full bg-[#2d241f] px-7 py-4 font-black text-white"
             >
-              {agregandoTratamiento
-                ? "AGREGANDO..."
-                : "+ AGREGAR TRATAMIENTO"}
+              + AGREGAR TRATAMIENTO
             </button>
           </div>
 
@@ -1494,27 +1500,9 @@ export default function AdminAgenda({
                   key={
                     servicio.id
                   }
-                  className="rounded-3xl border border-[#e6d9ca] bg-white p-5"
+                  className="rounded-3xl border bg-white p-5"
                 >
-                  <div className="flex justify-between gap-3">
-                    <div className="text-2xl">
-                      ✨
-                    </div>
-
-                    <span
-                      className={
-                        servicio.activo
-                          ? "text-xs font-black text-green-700"
-                          : "text-xs font-black text-red-700"
-                      }
-                    >
-                      {servicio.activo
-                        ? "ACTIVO"
-                        : "INACTIVO"}
-                    </span>
-                  </div>
-
-                  <label className="mt-5 block text-xs font-black uppercase tracking-widest text-[#99877a]">
+                  <label className="text-xs font-black">
                     Nombre
                   </label>
 
@@ -1524,98 +1512,66 @@ export default function AdminAgenda({
                         servicio.id
                       ] ?? ""
                     }
-                    onChange={(
-                      event
-                    ) =>
+                    onChange={(e) =>
                       setNombresServicios(
-                        (
-                          actuales
-                        ) => ({
+                        (actuales) => ({
                           ...actuales,
-
                           [servicio.id]:
-                            event
-                              .target
+                            e.target
                               .value,
                         })
                       )
                     }
-                    className="mt-2 w-full rounded-2xl border border-[#e4d6c6] bg-[#f7f2ea] p-3 outline-none focus:border-[#b58a45]"
+                    className="mt-2 w-full rounded-2xl border p-3"
                   />
 
-                  <label className="mt-4 block text-xs font-black uppercase tracking-widest text-[#99877a]">
+                  <label className="mt-4 block text-xs font-black">
                     Precio
                   </label>
 
-                  <div className="mt-2 flex items-center rounded-2xl border border-[#e4d6c6] bg-[#f7f2ea] px-4">
-                    <span className="font-black text-[#a47f43]">
-                      $
-                    </span>
+                  <input
+                    type="number"
+                    value={
+                      precios[
+                        servicio.id
+                      ] ?? ""
+                    }
+                    onChange={(e) =>
+                      setPrecios(
+                        (actuales) => ({
+                          ...actuales,
+                          [servicio.id]:
+                            e.target
+                              .value,
+                        })
+                      )
+                    }
+                    className="mt-2 w-full rounded-2xl border p-3"
+                  />
 
-                    <input
-                      type="number"
-                      min="0"
-                      value={
-                        precios[
-                          servicio.id
-                        ] ?? ""
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setPrecios(
-                          (
-                            actuales
-                          ) => ({
-                            ...actuales,
-
-                            [servicio.id]:
-                              event
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className="w-full bg-transparent p-3 outline-none"
-                    />
-                  </div>
-
-                  <label className="mt-4 block text-xs font-black uppercase tracking-widest text-[#99877a]">
+                  <label className="mt-4 block text-xs font-black">
                     Duración
                   </label>
 
-                  <div className="mt-2 flex items-center rounded-2xl border border-[#e4d6c6] bg-[#f7f2ea] px-4">
-                    <input
-                      type="number"
-                      min="1"
-                      value={
-                        duraciones[
-                          servicio.id
-                        ] ?? ""
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setDuraciones(
-                          (
-                            actuales
-                          ) => ({
-                            ...actuales,
-
-                            [servicio.id]:
-                              event
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className="w-full bg-transparent p-3 outline-none"
-                    />
-
-                    <span className="text-sm font-bold text-[#8f7e72]">
-                      min
-                    </span>
-                  </div>
+                  <input
+                    type="number"
+                    value={
+                      duraciones[
+                        servicio.id
+                      ] ?? ""
+                    }
+                    onChange={(e) =>
+                      setDuraciones(
+                        (actuales) => ({
+                          ...actuales,
+                          [servicio.id]:
+                            e.target
+                              .value,
+                        })
+                      )
+                    }
+                    className="mt-2 w-full rounded-2xl border p-3"
+                  />
 
                   <button
                     type="button"
@@ -1628,12 +1584,9 @@ export default function AdminAgenda({
                       procesandoServicio ===
                       servicio.id
                     }
-                    className="mt-5 w-full rounded-full bg-[#b58a45] py-3 font-black text-white disabled:opacity-50"
+                    className="mt-4 w-full rounded-full bg-[#b58a45] py-3 font-black text-white"
                   >
-                    {procesandoServicio ===
-                    servicio.id
-                      ? "GUARDANDO..."
-                      : "GUARDAR CAMBIOS"}
+                    GUARDAR CAMBIOS
                   </button>
 
                   <button
@@ -1647,11 +1600,7 @@ export default function AdminAgenda({
                       procesandoServicio ===
                       servicio.id
                     }
-                    className={`mt-3 w-full rounded-full py-3 font-black disabled:opacity-50 ${
-                      servicio.activo
-                        ? "bg-red-100 text-red-700"
-                        : "bg-green-100 text-green-700"
-                    }`}
+                    className="mt-3 w-full rounded-full bg-[#eee2d1] py-3 font-black"
                   >
                     {servicio.activo
                       ? "DESACTIVAR"
@@ -1669,7 +1618,7 @@ export default function AdminAgenda({
                       procesandoServicio ===
                       servicio.id
                     }
-                    className="mt-3 w-full rounded-full border border-red-200 bg-white py-3 font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                    className="mt-3 w-full rounded-full border border-red-200 py-3 font-black text-red-700"
                   >
                     ELIMINAR
                   </button>
@@ -1680,21 +1629,12 @@ export default function AdminAgenda({
         </section>
 
         {/* HORARIOS */}
-        <section className="mt-8 rounded-[32px] border border-[#dfcfbb] bg-[#fffaf4] p-6 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#a47f43]">
-            Agenda
-          </p>
-
-          <h2 className="mt-2 text-2xl font-black">
+        <section className="mt-8 rounded-[32px] border border-[#dfcfbb] bg-[#fffaf4] p-6">
+          <h2 className="text-2xl font-black">
             Horarios de atención
           </h2>
 
-          <p className="mt-2 text-sm text-[#8f7e72]">
-            Tocá un horario para
-            activarlo o desactivarlo.
-          </p>
-
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             {horarios.map(
               (horario) => (
                 <button
@@ -1711,23 +1651,15 @@ export default function AdminAgenda({
                     procesandoHorario ===
                     horario.id
                   }
-                  className={`rounded-2xl border p-4 text-center disabled:opacity-50 ${
+                  className={`rounded-2xl border p-4 font-black ${
                     horario.activo
-                      ? "border-green-200 bg-green-50 text-green-700"
-                      : "border-red-200 bg-red-50 text-red-700"
+                      ? "bg-green-50 text-green-700"
+                      : "bg-red-50 text-red-700"
                   }`}
                 >
-                  <span className="block text-xl font-black">
-                    {
-                      horario.hora
-                    }
-                  </span>
-
-                  <span className="mt-1 block text-[10px] font-black">
-                    {horario.activo
-                      ? "ACTIVO"
-                      : "INACTIVO"}
-                  </span>
+                  {String(
+                    horario.hora
+                  ).slice(0, 5)}
                 </button>
               )
             )}
@@ -1736,11 +1668,7 @@ export default function AdminAgenda({
 
         {/* TURNOS */}
         <section className="mt-12">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#a47f43]">
-            Turnos
-          </p>
-
-          <h2 className="mt-2 text-3xl font-black">
+          <h2 className="text-3xl font-black">
             Agenda e historial
           </h2>
 
@@ -1809,45 +1737,27 @@ export default function AdminAgenda({
 
           <input
             value={busqueda}
-            onChange={(event) =>
+            onChange={(e) =>
               setBusqueda(
-                event.target.value
+                e.target.value
               )
             }
             placeholder="Buscar cliente, teléfono o profesional..."
-            className="mt-5 w-full rounded-2xl border border-[#dfcfbb] bg-white p-4 outline-none focus:border-[#b58a45]"
+            className="mt-5 w-full rounded-2xl border bg-white p-4"
           />
-
-          <p className="mt-5 text-sm text-[#8f7e72]">
-            {
-              turnosFiltrados.length
-            }{" "}
-            turnos encontrados
-          </p>
 
           {turnosFiltrados.length ===
           0 ? (
-            <div className="mt-6 rounded-[32px] border border-[#dfcfbb] bg-[#fffaf4] p-10 text-center">
-              <p className="text-4xl">
-                ✨
-              </p>
-
-              <p className="mt-4 font-black">
-                No hay turnos para
-                mostrar.
-              </p>
+            <div className="mt-6 rounded-3xl border bg-white p-8 text-center">
+              No hay turnos para mostrar.
             </div>
           ) : (
             <div className="mt-6 space-y-5">
               {turnosFiltrados.map(
                 (turno) => (
                   <TurnoCard
-                    key={
-                      turno.id
-                    }
-                    turno={
-                      turno
-                    }
+                    key={turno.id}
+                    turno={turno}
                     horarios={
                       horarios
                     }
@@ -1882,11 +1792,11 @@ function Filtro({
       onClick={onClick}
       className={`rounded-2xl border p-4 text-left ${
         activo
-          ? "border-[#b58a45] bg-[#b58a45] text-white"
-          : "border-[#dfcfbb] bg-[#fffaf4]"
+          ? "bg-[#b58a45] text-white"
+          : "bg-white"
       }`}
     >
-      <span className="block text-sm font-black">
+      <span className="font-black">
         {nombre}
       </span>
 
@@ -1899,27 +1809,29 @@ function Filtro({
 
 function TurnoCard({
   turno,
-  horarios = [],
+  horarios,
   actualizar,
 }: {
   turno: Turno;
-  horarios?: HorarioAdmin[];
+  horarios: HorarioAdmin[];
   actualizar: () => void;
 }) {
   const [
     fechaNueva,
     setFechaNueva,
   ] = useState(
-    turno.fecha
+    turno.fecha_propuesta ??
+      turno.fecha
   );
 
   const [
     horaNueva,
     setHoraNueva,
   ] = useState(
-    String(
-      turno.hora
-    ).slice(0, 5)
+    turno.hora_propuesta ??
+      String(
+        turno.hora
+      ).slice(0, 5)
   );
 
   const [
@@ -1927,16 +1839,43 @@ function TurnoCard({
     setCargando,
   ] = useState(false);
 
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    mensajeLocal,
+    setMensajeLocal,
+  ] = useState("");
+
+  const [
+    cambioConfirmado,
+    setCambioConfirmado,
+  ] = useState<{
+    fecha: string;
+    hora: string;
+  } | null>(null);
 
   const cancelado =
     turno.estado ===
     "cancelado";
 
-  const horaActual = String(
-    turno.hora
-  ).slice(0, 5);
+  const horaActual =
+    String(
+      turno.hora
+    ).slice(0, 5);
+
+  const tienePropuesta =
+    Boolean(
+      turno.fecha_propuesta &&
+        turno.hora_propuesta
+    );
+
+  const propuestaEnviada =
+    Boolean(
+      turno.propuesta_enviada_at
+    );
 
   const horariosActivos =
     horarios
@@ -1944,29 +1883,328 @@ function TurnoCard({
         (horario) =>
           horario.activo
       )
-      .map(
-        (horario) =>
-          String(
-            horario.hora
-          ).slice(0, 5)
+      .map((horario) =>
+        String(
+          horario.hora
+        ).slice(0, 5)
       );
 
   const opcionesHorario =
     horariosActivos.includes(
-      horaActual
+      horaNueva
     )
       ? horariosActivos
       : [
-          horaActual,
+          horaNueva,
           ...horariosActivos,
         ];
 
-  async function enviarCambio(
-    cambios: Record<
-      string,
-      string
-    >
-  ) {
+  async function proponerCambio() {
+    setError("");
+    setMensajeLocal("");
+
+    if (
+      fechaNueva ===
+        turno.fecha &&
+      horaNueva === horaActual
+    ) {
+      setError(
+        "Elegí otra fecha u otro horario."
+      );
+      return;
+    }
+
+    const confirmar =
+      window.confirm(
+        `¿Preparar esta propuesta de cambio?\n\n` +
+          `TURNO ACTUAL\n` +
+          `${formatearFecha(
+            turno.fecha
+          )} - ${horaActual}\n\n` +
+          `NUEVA PROPUESTA\n` +
+          `${formatearFecha(
+            fechaNueva
+          )} - ${horaNueva}\n\n` +
+          `El turno original todavía NO se va a modificar.`
+      );
+
+    if (!confirmar) {
+      return;
+    }
+
+    setCargando(true);
+
+    try {
+      const respuesta =
+        await fetch(
+          `/api/admin/turnos/${turno.id}`,
+          {
+            method: "PATCH",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              accion:
+                "proponer",
+              fecha:
+                fechaNueva,
+              hora:
+                horaNueva,
+            }),
+          }
+        );
+
+      const resultado =
+        await respuesta.json();
+
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado.error ||
+            "No se pudo preparar la propuesta."
+        );
+      }
+
+      setMensajeLocal(
+        "Propuesta preparada. El turno original todavía no cambió."
+      );
+
+      actualizar();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo preparar la propuesta."
+      );
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function enviarPropuestaWhatsApp() {
+    if (
+      !turno.fecha_propuesta ||
+      !turno.hora_propuesta
+    ) {
+      setError(
+        "No hay una propuesta pendiente."
+      );
+      return;
+    }
+
+    const link =
+      crearLinkWhatsApp(
+        turno.telefono,
+        mensajePropuesta(
+          turno,
+          turno.fecha_propuesta,
+          turno.hora_propuesta
+        )
+      );
+
+    if (!link) {
+      setError(
+        "El teléfono del cliente no es válido."
+      );
+      return;
+    }
+
+    /*
+     * Abrimos WhatsApp directamente
+     * desde el click para evitar que
+     * el navegador lo bloquee.
+     */
+    window.open(
+      link,
+      "_blank"
+    );
+
+    setMensajeLocal(
+      "WhatsApp abierto. Ahora esperá la respuesta del cliente."
+    );
+
+    try {
+      const respuesta =
+        await fetch(
+          `/api/admin/turnos/${turno.id}`,
+          {
+            method: "PATCH",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              accion:
+                "marcar_propuesta_enviada",
+            }),
+          }
+        );
+
+      const resultado =
+        await respuesta.json();
+
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado.error ||
+            "No se pudo marcar la propuesta como enviada."
+        );
+      }
+
+      actualizar();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "WhatsApp se abrió, pero no se pudo actualizar el estado."
+      );
+    }
+  }
+
+  async function confirmarCambio() {
+    if (
+      !turno.fecha_propuesta ||
+      !turno.hora_propuesta
+    ) {
+      setError(
+        "No hay una propuesta pendiente."
+      );
+      return;
+    }
+
+    if (
+      !turno.propuesta_enviada_at
+    ) {
+      setError(
+        "Primero enviá la propuesta al cliente por WhatsApp."
+      );
+      return;
+    }
+
+    const confirmar =
+      window.confirm(
+        `IMPORTANTE\n\n` +
+          `Confirmá esto solamente si ${turno.nombre} respondió que SÍ por WhatsApp.\n\n` +
+          `¿El cliente aceptó el nuevo turno del ${formatearFecha(
+            turno.fecha_propuesta
+          )} a las ${turno.hora_propuesta}?`
+      );
+
+    if (!confirmar) {
+      return;
+    }
+
+    setCargando(true);
+    setError("");
+    setMensajeLocal("");
+
+    const fechaConfirmada =
+      turno.fecha_propuesta;
+
+    const horaConfirmada =
+      turno.hora_propuesta;
+
+    try {
+      const respuesta =
+        await fetch(
+          `/api/admin/turnos/${turno.id}`,
+          {
+            method: "PATCH",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              accion:
+                "confirmar_propuesta",
+            }),
+          }
+        );
+
+      const resultado =
+        await respuesta.json();
+
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado.error ||
+            "No se pudo confirmar el cambio."
+        );
+      }
+
+      setCambioConfirmado({
+        fecha:
+          fechaConfirmada,
+        hora:
+          horaConfirmada,
+      });
+
+      setMensajeLocal(
+        "Turno reprogramado correctamente. Ahora podés enviar la confirmación al cliente."
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo confirmar el cambio."
+      );
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  function enviarConfirmacionWhatsApp() {
+    if (!cambioConfirmado) {
+      return;
+    }
+
+    const link =
+      crearLinkWhatsApp(
+        turno.telefono,
+        mensajeConfirmacion(
+          turno,
+          cambioConfirmado.fecha,
+          cambioConfirmado.hora
+        )
+      );
+
+    if (!link) {
+      setError(
+        "El teléfono del cliente no es válido."
+      );
+      return;
+    }
+
+    window.open(
+      link,
+      "_blank"
+    );
+
+    setMensajeLocal(
+      "Confirmación preparada en WhatsApp."
+    );
+
+    setCambioConfirmado(
+      null
+    );
+
+    actualizar();
+  }
+
+  async function cancelarPropuesta() {
+    const confirmar =
+      window.confirm(
+        "¿Descartar esta propuesta? El turno original seguirá igual."
+      );
+
+    if (!confirmar) {
+      return;
+    }
+
     setCargando(true);
     setError("");
 
@@ -1982,9 +2220,10 @@ function TurnoCard({
                 "application/json",
             },
 
-            body: JSON.stringify(
-              cambios
-            ),
+            body: JSON.stringify({
+              accion:
+                "cancelar_propuesta",
+            }),
           }
         );
 
@@ -1994,7 +2233,73 @@ function TurnoCard({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo realizar el cambio"
+            "No se pudo descartar la propuesta."
+        );
+      }
+
+      setMensajeLocal(
+        "Propuesta descartada."
+      );
+
+      setFechaNueva(
+        turno.fecha
+      );
+
+      setHoraNueva(
+        horaActual
+      );
+
+      actualizar();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo descartar la propuesta."
+      );
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function cancelarTurno() {
+    const confirmar =
+      window.confirm(
+        `¿Cancelar definitivamente el turno de ${turno.nombre} ${turno.apellido}?`
+      );
+
+    if (!confirmar) {
+      return;
+    }
+
+    setCargando(true);
+    setError("");
+
+    try {
+      const respuesta =
+        await fetch(
+          `/api/admin/turnos/${turno.id}`,
+          {
+            method: "PATCH",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              accion:
+                "cancelar",
+            }),
+          }
+        );
+
+      const resultado =
+        await respuesta.json();
+
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado.error ||
+            "No se pudo cancelar el turno."
         );
       }
 
@@ -2003,46 +2308,11 @@ function TurnoCard({
       setError(
         err instanceof Error
           ? err.message
-          : "Ocurrió un error"
+          : "No se pudo cancelar."
       );
     } finally {
       setCargando(false);
     }
-  }
-
-  async function moverTurno() {
-    if (
-      fechaNueva ===
-        turno.fecha &&
-      horaNueva === horaActual
-    ) {
-      setError(
-        "Elegí otra fecha u otro horario."
-      );
-
-      return;
-    }
-
-    await enviarCambio({
-      accion: "mover",
-      fecha: fechaNueva,
-      hora: horaNueva,
-    });
-  }
-
-  async function cancelarTurno() {
-    const confirmar =
-      window.confirm(
-        `¿Cancelar el turno de ${turno.nombre} ${turno.apellido}?`
-      );
-
-    if (!confirmar) {
-      return;
-    }
-
-    await enviarCambio({
-      accion: "cancelar",
-    });
   }
 
   async function borrarTurno() {
@@ -2073,7 +2343,7 @@ function TurnoCard({
       if (!respuesta.ok) {
         throw new Error(
           resultado.error ||
-            "No se pudo borrar el turno"
+            "No se pudo borrar."
         );
       }
 
@@ -2082,7 +2352,7 @@ function TurnoCard({
       setError(
         err instanceof Error
           ? err.message
-          : "Ocurrió un error"
+          : "No se pudo borrar."
       );
     } finally {
       setCargando(false);
@@ -2097,7 +2367,7 @@ function TurnoCard({
           : "border-[#dfcfbb] bg-[#fffaf4]"
       }`}
     >
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr_auto] lg:items-center">
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-xl font-black">
@@ -2106,20 +2376,20 @@ function TurnoCard({
             </h3>
 
             <span
-              className={
+              className={`rounded-full px-3 py-1 text-xs font-black ${
                 cancelado
-                  ? "text-xs font-black text-red-700"
-                  : "text-xs font-black text-green-700"
-              }
+                  ? "bg-red-100 text-red-700"
+                  : "bg-green-100 text-green-700"
+              }`}
             >
               {turno.estado.toUpperCase()}
             </span>
           </div>
 
-          <div className="mt-4 space-y-2 text-sm text-[#806f64]">
+          <div className="mt-4 space-y-2 text-sm">
             <p>
               ✨ Profesional:{" "}
-              <strong className="text-[#a47f43]">
+              <strong>
                 {
                   turno.barbero_nombre
                 }
@@ -2137,107 +2407,294 @@ function TurnoCard({
             </p>
 
             <p>
-              💳{" "}
-              {
-                turno.forma_pago
-              }
+              📅 Turno actual:{" "}
+              <strong>
+                {formatearFecha(
+                  turno.fecha
+                )}
+              </strong>
             </p>
 
             <p>
-              💰 $
-              {turno.precio.toLocaleString(
-                "es-AR"
-              )}
+              🕐 Horario:{" "}
+              <strong>
+                {horaActual}
+              </strong>
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <input
-            type="date"
-            value={fechaNueva}
-            disabled={cancelado}
-            onChange={(event) =>
-              setFechaNueva(
-                event.target.value
-              )
-            }
-            className="rounded-2xl border border-[#e4d6c6] bg-white p-3 disabled:opacity-40"
-          />
+        {!cancelado &&
+          !tienePropuesta &&
+          !cambioConfirmado && (
+            <div className="rounded-3xl border border-[#e3d5c4] bg-white p-5">
+              <p className="font-black">
+                Proponer otro horario
+              </p>
 
-          <select
-            value={horaNueva}
-            disabled={cancelado}
-            onChange={(event) =>
-              setHoraNueva(
-                event.target.value
-              )
-            }
-            className="rounded-2xl border border-[#e4d6c6] bg-white p-3 disabled:opacity-40"
-          >
-            {opcionesHorario.map(
-              (horario) => (
-                <option
-                  key={horario}
-                  value={horario}
+              <p className="mt-1 text-xs text-[#8f7e72]">
+                El turno no se modificará hasta que el cliente confirme.
+              </p>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <input
+                  type="date"
+                  value={
+                    fechaNueva
+                  }
+                  onChange={(e) =>
+                    setFechaNueva(
+                      e.target.value
+                    )
+                  }
+                  className="rounded-2xl border bg-white p-3"
+                />
+
+                <select
+                  value={
+                    horaNueva
+                  }
+                  onChange={(e) =>
+                    setHoraNueva(
+                      e.target.value
+                    )
+                  }
+                  className="rounded-2xl border bg-white p-3"
                 >
-                  {horario}
-                </option>
-              )
+                  {opcionesHorario.map(
+                    (horario) => (
+                      <option
+                        key={
+                          horario
+                        }
+                        value={
+                          horario
+                        }
+                      >
+                        {horario}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  proponerCambio
+                }
+                disabled={
+                  cargando
+                }
+                className="mt-4 w-full rounded-full bg-[#b58a45] py-3 font-black text-white disabled:opacity-50"
+              >
+                {cargando
+                  ? "GUARDANDO..."
+                  : "PROPONER CAMBIO"}
+              </button>
+            </div>
+          )}
+      </div>
+
+      {!cancelado &&
+        tienePropuesta &&
+        !cambioConfirmado && (
+          <div className="mt-6 rounded-3xl border-2 border-[#d7b36c] bg-[#fff8e9] p-5">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#a47f43]">
+              Cambio pendiente de confirmación
+            </p>
+
+            <h4 className="mt-2 text-xl font-black">
+              Propuesta para el cliente
+            </h4>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white p-4">
+                <p className="text-xs font-bold text-[#8f7e72]">
+                  TURNO ACTUAL
+                </p>
+
+                <p className="mt-2 font-black">
+                  {formatearFecha(
+                    turno.fecha
+                  )}
+                </p>
+
+                <p className="font-black">
+                  {horaActual}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#f2e5c9] p-4">
+                <p className="text-xs font-bold text-[#8b6b34]">
+                  NUEVA PROPUESTA
+                </p>
+
+                <p className="mt-2 font-black">
+                  {formatearFecha(
+                    turno.fecha_propuesta!
+                  )}
+                </p>
+
+                <p className="font-black">
+                  {
+                    turno.hora_propuesta
+                  }
+                </p>
+              </div>
+            </div>
+
+            {!propuestaEnviada ? (
+              <button
+                type="button"
+                onClick={
+                  enviarPropuestaWhatsApp
+                }
+                className="mt-5 w-full rounded-full bg-[#25D366] py-4 font-black text-white"
+              >
+                💬 ENVIAR PROPUESTA POR WHATSAPP
+              </button>
+            ) : (
+              <>
+                <div className="mt-5 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm font-bold text-green-700">
+                  ✓ Propuesta enviada por WhatsApp.
+                  Esperá la respuesta del cliente antes de confirmar el cambio.
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    enviarPropuestaWhatsApp
+                  }
+                  className="mt-3 w-full rounded-full border border-[#25D366] bg-white py-3 font-black text-[#128C7E]"
+                >
+                  💬 VOLVER A ABRIR WHATSAPP
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    confirmarCambio
+                  }
+                  disabled={
+                    cargando
+                  }
+                  className="mt-3 w-full rounded-full bg-[#2d241f] py-4 font-black text-white disabled:opacity-50"
+                >
+                  {cargando
+                    ? "CONFIRMANDO..."
+                    : "✓ EL CLIENTE CONFIRMÓ — APLICAR CAMBIO"}
+                </button>
+              </>
             )}
-          </select>
-        </div>
-
-        {!cancelado ? (
-          <div className="flex flex-wrap gap-3 lg:flex-col">
-            <button
-              type="button"
-              onClick={
-                moverTurno
-              }
-              disabled={
-                cargando
-              }
-              className="rounded-full bg-[#b58a45] px-5 py-3 font-black text-white disabled:opacity-50"
-            >
-              {cargando
-                ? "Procesando..."
-                : "Mover"}
-            </button>
 
             <button
               type="button"
               onClick={
-                cancelarTurno
+                cancelarPropuesta
               }
               disabled={
                 cargando
               }
-              className="rounded-full bg-red-100 px-5 py-3 font-black text-red-700 disabled:opacity-50"
+              className="mt-3 w-full rounded-full border border-red-200 bg-white py-3 font-black text-red-700"
             >
-              Cancelar
+              DESCARTAR PROPUESTA
             </button>
           </div>
-        ) : (
+        )}
+
+      {cambioConfirmado && (
+        <div className="mt-6 rounded-3xl border-2 border-green-300 bg-green-50 p-6">
+          <p className="text-sm font-black uppercase tracking-[0.15em] text-green-700">
+            ✓ Cambio confirmado
+          </p>
+
+          <h4 className="mt-2 text-2xl font-black">
+            El turno ya fue reprogramado
+          </h4>
+
+          <p className="mt-3">
+            Nueva fecha:{" "}
+            <strong>
+              {formatearFecha(
+                cambioConfirmado.fecha
+              )}
+            </strong>
+          </p>
+
+          <p>
+            Nuevo horario:{" "}
+            <strong>
+              {
+                cambioConfirmado.hora
+              }
+            </strong>
+          </p>
+
           <button
             type="button"
             onClick={
-              borrarTurno
+              enviarConfirmacionWhatsApp
+            }
+            className="mt-5 w-full rounded-full bg-[#25D366] py-4 font-black text-white"
+          >
+            💬 ENVIAR CONFIRMACIÓN POR WHATSAPP
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCambioConfirmado(
+                null
+              );
+              actualizar();
+            }}
+            className="mt-3 w-full rounded-full border border-green-300 bg-white py-3 font-black text-green-700"
+          >
+            CERRAR SIN ENVIAR
+          </button>
+        </div>
+      )}
+
+      {!cancelado &&
+        !cambioConfirmado && (
+          <button
+            type="button"
+            onClick={
+              cancelarTurno
             }
             disabled={
               cargando
             }
-            className="rounded-full bg-red-600 px-5 py-3 font-black text-white disabled:opacity-50"
+            className="mt-5 rounded-full bg-red-100 px-5 py-3 font-black text-red-700"
           >
-            {cargando
-              ? "Borrando..."
-              : "Borrar definitivamente"}
+            Cancelar turno
           </button>
         )}
-      </div>
+
+      {cancelado && (
+        <button
+          type="button"
+          onClick={
+            borrarTurno
+          }
+          disabled={
+            cargando
+          }
+          className="mt-5 rounded-full bg-red-600 px-5 py-3 font-black text-white"
+        >
+          Borrar definitivamente
+        </button>
+      )}
+
+      {mensajeLocal && (
+        <div className="mt-5 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-700">
+          ✓ {mensajeLocal}
+        </div>
+      )}
 
       {error && (
-        <div className="mt-5 rounded-2xl bg-red-100 p-4 text-red-700">
+        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
           {error}
         </div>
       )}
