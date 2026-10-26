@@ -108,9 +108,60 @@ export default function AdminAgenda({
     );
 
   const [
+    nombresServicios,
+    setNombresServicios,
+  ] = useState<
+    Record<number, string>
+  >(() =>
+    Object.fromEntries(
+      servicios.map((servicio) => [
+        servicio.id,
+        servicio.nombre,
+      ])
+    )
+  );
+
+  const [
+    duraciones,
+    setDuraciones,
+  ] = useState<
+    Record<number, string>
+  >(() =>
+    Object.fromEntries(
+      servicios.map((servicio) => [
+        servicio.id,
+        String(
+          servicio.duracion_minutos ??
+            60
+        ),
+      ])
+    )
+  );
+
+  const [
     nuevoProfesional,
     setNuevoProfesional,
   ] = useState("");
+
+  const [
+    nuevoTratamiento,
+    setNuevoTratamiento,
+  ] = useState("");
+
+  const [
+    nuevoPrecio,
+    setNuevoPrecio,
+  ] = useState("");
+
+  const [
+    nuevaDuracion,
+    setNuevaDuracion,
+  ] = useState("60");
+
+  const [
+    agregandoTratamiento,
+    setAgregandoTratamiento,
+  ] = useState(false);
 
   const [
     asignaciones,
@@ -173,6 +224,46 @@ export default function AdminAgenda({
   useEffect(() => {
     cargarAsignaciones();
   }, []);
+
+  useEffect(() => {
+    setPrecios(
+      Object.fromEntries(
+        servicios.map(
+          (servicio) => [
+            servicio.id,
+            String(
+              servicio.precio ?? 0
+            ),
+          ]
+        )
+      )
+    );
+
+    setNombresServicios(
+      Object.fromEntries(
+        servicios.map(
+          (servicio) => [
+            servicio.id,
+            servicio.nombre,
+          ]
+        )
+      )
+    );
+
+    setDuraciones(
+      Object.fromEntries(
+        servicios.map(
+          (servicio) => [
+            servicio.id,
+            String(
+              servicio.duracion_minutos ??
+                60
+            ),
+          ]
+        )
+      )
+    );
+  }, [servicios]);
 
   async function cargarAsignaciones() {
     setCargandoAsignaciones(
@@ -421,10 +512,114 @@ export default function AdminAgenda({
     }
   }
 
+  async function agregarTratamiento() {
+    const nombre =
+      nuevoTratamiento.trim();
+
+    const precio =
+      Number(nuevoPrecio);
+
+    const duracion =
+      Number(nuevaDuracion);
+
+    if (!nombre) {
+      setError(
+        "Ingresá el nombre del tratamiento."
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isInteger(precio) ||
+      precio < 0
+    ) {
+      setError(
+        "Ingresá un precio válido."
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isInteger(
+        duracion
+      ) ||
+      duracion <= 0
+    ) {
+      setError(
+        "Ingresá una duración válida."
+      );
+
+      return;
+    }
+
+    setAgregandoTratamiento(
+      true
+    );
+
+    setMensaje("");
+    setError("");
+
+    try {
+      const respuesta =
+        await fetch(
+          "/api/admin/servicios",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              nombre,
+              precio,
+              duracionMinutos:
+                duracion,
+            }),
+          }
+        );
+
+      const resultado =
+        await respuesta.json();
+
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado.error ||
+            "No se pudo agregar el tratamiento"
+        );
+      }
+
+      setNuevoTratamiento("");
+      setNuevoPrecio("");
+      setNuevaDuracion("60");
+
+      setMensaje(
+        `${resultado.servicio.nombre} agregado correctamente. Ahora podés asignárselo a las profesionales.`
+      );
+
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo agregar el tratamiento"
+      );
+    } finally {
+      setAgregandoTratamiento(
+        false
+      );
+    }
+  }
+
   async function actualizarServicio(
     id: number,
     cambios: {
       precio?: number;
+      duracionMinutos?: number;
+      nombre?: string;
       activo?: boolean;
     }
   ) {
@@ -462,21 +657,38 @@ export default function AdminAgenda({
         );
       }
 
-      if (
-        resultado.servicio
-          .precio !== null
-      ) {
-        setPrecios(
-          (actuales) => ({
-            ...actuales,
+      setPrecios(
+        (actuales) => ({
+          ...actuales,
 
-            [id]: String(
-              resultado.servicio
-                .precio
-            ),
-          })
-        );
-      }
+          [id]: String(
+            resultado.servicio
+              .precio ?? 0
+          ),
+        })
+      );
+
+      setNombresServicios(
+        (actuales) => ({
+          ...actuales,
+
+          [id]:
+            resultado.servicio
+              .nombre,
+        })
+      );
+
+      setDuraciones(
+        (actuales) => ({
+          ...actuales,
+
+          [id]: String(
+            resultado.servicio
+              .duracion_minutos ??
+              60
+          ),
+        })
+      );
 
       setMensaje(
         `${resultado.servicio.nombre} actualizado correctamente.`
@@ -496,16 +708,40 @@ export default function AdminAgenda({
     }
   }
 
-  async function guardarPrecio(
-    id: number
+  async function guardarCambiosServicio(
+    servicio: ServicioAdmin
   ) {
+    const nombre =
+      (
+        nombresServicios[
+          servicio.id
+        ] ?? ""
+      ).trim();
+
     const precio =
-      Number(precios[id]);
+      Number(
+        precios[
+          servicio.id
+        ]
+      );
+
+    const duracion =
+      Number(
+        duraciones[
+          servicio.id
+        ]
+      );
+
+    if (!nombre) {
+      setError(
+        "El nombre del tratamiento no puede estar vacío."
+      );
+
+      return;
+    }
 
     if (
-      !Number.isInteger(
-        precio
-      ) ||
+      !Number.isInteger(precio) ||
       precio < 0
     ) {
       setError(
@@ -515,10 +751,26 @@ export default function AdminAgenda({
       return;
     }
 
+    if (
+      !Number.isInteger(
+        duracion
+      ) ||
+      duracion <= 0
+    ) {
+      setError(
+        "Ingresá una duración válida."
+      );
+
+      return;
+    }
+
     await actualizarServicio(
-      id,
+      servicio.id,
       {
+        nombre,
         precio,
+        duracionMinutos:
+          duracion,
       }
     );
   }
@@ -533,6 +785,73 @@ export default function AdminAgenda({
           !servicio.activo,
       }
     );
+  }
+
+  async function eliminarTratamiento(
+    servicio: ServicioAdmin
+  ) {
+    const confirmar =
+      window.confirm(
+        `¿Eliminar definitivamente el tratamiento "${servicio.nombre}"?`
+      );
+
+    if (!confirmar) {
+      return;
+    }
+
+    setProcesandoServicio(
+      servicio.id
+    );
+
+    setMensaje("");
+    setError("");
+
+    try {
+      const respuesta =
+        await fetch(
+          "/api/admin/servicios",
+          {
+            method: "DELETE",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              id: servicio.id,
+            }),
+          }
+        );
+
+      const resultado =
+        await respuesta.json();
+
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado.error ||
+            "No se pudo eliminar el tratamiento"
+        );
+      }
+
+      setMensaje(
+        `${resultado.nombre} eliminado correctamente.`
+      );
+
+      router.refresh();
+
+      await cargarAsignaciones();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo eliminar el tratamiento"
+      );
+    } finally {
+      setProcesandoServicio(
+        null
+      );
+    }
   }
 
   async function cambiarHorario(
@@ -964,7 +1283,6 @@ export default function AdminAgenda({
                     </span>
                   </div>
 
-                  {/* TRATAMIENTOS DE LA PROFESIONAL */}
                   <div className="mt-5 rounded-2xl border border-[#e5d8c8] bg-white p-4">
                     <p className="text-xs font-black uppercase tracking-[0.2em] text-[#a47f43]">
                       Tratamientos que realiza
@@ -1098,10 +1416,76 @@ export default function AdminAgenda({
           </h2>
 
           <p className="mt-2 text-sm text-[#8f7e72]">
-            Modificá los precios o
-            activá y desactivá
-            tratamientos.
+            Agregá nuevos tratamientos,
+            editá nombre, precio y
+            duración, o eliminá los que
+            ya no uses.
           </p>
+
+          {/* NUEVO TRATAMIENTO */}
+          <div className="mt-6 rounded-3xl border border-[#dac5a7] bg-[#f7f2ea] p-5">
+            <p className="font-black">
+              Agregar nuevo tratamiento
+            </p>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <input
+                value={
+                  nuevoTratamiento
+                }
+                onChange={(event) =>
+                  setNuevoTratamiento(
+                    event.target.value
+                  )
+                }
+                placeholder="Ej: Manicura"
+                className="rounded-2xl border border-[#e4d6c6] bg-white p-4 outline-none focus:border-[#b58a45]"
+              />
+
+              <input
+                type="number"
+                min="0"
+                value={nuevoPrecio}
+                onChange={(event) =>
+                  setNuevoPrecio(
+                    event.target.value
+                  )
+                }
+                placeholder="Precio"
+                className="rounded-2xl border border-[#e4d6c6] bg-white p-4 outline-none focus:border-[#b58a45]"
+              />
+
+              <input
+                type="number"
+                min="1"
+                value={
+                  nuevaDuracion
+                }
+                onChange={(event) =>
+                  setNuevaDuracion(
+                    event.target.value
+                  )
+                }
+                placeholder="Duración en minutos"
+                className="rounded-2xl border border-[#e4d6c6] bg-white p-4 outline-none focus:border-[#b58a45]"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                agregarTratamiento
+              }
+              disabled={
+                agregandoTratamiento
+              }
+              className="mt-4 rounded-full bg-[#2d241f] px-7 py-4 font-black text-white disabled:opacity-50"
+            >
+              {agregandoTratamiento
+                ? "AGREGANDO..."
+                : "+ AGREGAR TRATAMIENTO"}
+            </button>
+          </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {servicios.map(
@@ -1113,22 +1497,8 @@ export default function AdminAgenda({
                   className="rounded-3xl border border-[#e6d9ca] bg-white p-5"
                 >
                   <div className="flex justify-between gap-3">
-                    <div>
-                      <div className="text-2xl">
-                        ✨
-                      </div>
-
-                      <p className="mt-3 font-black">
-                        {
-                          servicio.nombre
-                        }
-                      </p>
-
-                      <p className="mt-1 text-sm text-[#958377]">
-                        {servicio.duracion_minutos ??
-                          "-"}{" "}
-                        min
-                      </p>
+                    <div className="text-2xl">
+                      ✨
                     </div>
 
                     <span
@@ -1144,13 +1514,47 @@ export default function AdminAgenda({
                     </span>
                   </div>
 
-                  <div className="mt-5 flex items-center rounded-2xl border border-[#e4d6c6] bg-[#f7f2ea] px-4">
+                  <label className="mt-5 block text-xs font-black uppercase tracking-widest text-[#99877a]">
+                    Nombre
+                  </label>
+
+                  <input
+                    value={
+                      nombresServicios[
+                        servicio.id
+                      ] ?? ""
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setNombresServicios(
+                        (
+                          actuales
+                        ) => ({
+                          ...actuales,
+
+                          [servicio.id]:
+                            event
+                              .target
+                              .value,
+                        })
+                      )
+                    }
+                    className="mt-2 w-full rounded-2xl border border-[#e4d6c6] bg-[#f7f2ea] p-3 outline-none focus:border-[#b58a45]"
+                  />
+
+                  <label className="mt-4 block text-xs font-black uppercase tracking-widest text-[#99877a]">
+                    Precio
+                  </label>
+
+                  <div className="mt-2 flex items-center rounded-2xl border border-[#e4d6c6] bg-[#f7f2ea] px-4">
                     <span className="font-black text-[#a47f43]">
                       $
                     </span>
 
                     <input
                       type="number"
+                      min="0"
                       value={
                         precios[
                           servicio.id
@@ -1176,20 +1580,60 @@ export default function AdminAgenda({
                     />
                   </div>
 
+                  <label className="mt-4 block text-xs font-black uppercase tracking-widest text-[#99877a]">
+                    Duración
+                  </label>
+
+                  <div className="mt-2 flex items-center rounded-2xl border border-[#e4d6c6] bg-[#f7f2ea] px-4">
+                    <input
+                      type="number"
+                      min="1"
+                      value={
+                        duraciones[
+                          servicio.id
+                        ] ?? ""
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        setDuraciones(
+                          (
+                            actuales
+                          ) => ({
+                            ...actuales,
+
+                            [servicio.id]:
+                              event
+                                .target
+                                .value,
+                          })
+                        )
+                      }
+                      className="w-full bg-transparent p-3 outline-none"
+                    />
+
+                    <span className="text-sm font-bold text-[#8f7e72]">
+                      min
+                    </span>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() =>
-                      guardarPrecio(
-                        servicio.id
+                      guardarCambiosServicio(
+                        servicio
                       )
                     }
                     disabled={
                       procesandoServicio ===
                       servicio.id
                     }
-                    className="mt-4 w-full rounded-full bg-[#b58a45] py-3 font-black text-white disabled:opacity-50"
+                    className="mt-5 w-full rounded-full bg-[#b58a45] py-3 font-black text-white disabled:opacity-50"
                   >
-                    GUARDAR PRECIO
+                    {procesandoServicio ===
+                    servicio.id
+                      ? "GUARDANDO..."
+                      : "GUARDAR CAMBIOS"}
                   </button>
 
                   <button
@@ -1212,6 +1656,22 @@ export default function AdminAgenda({
                     {servicio.activo
                       ? "DESACTIVAR"
                       : "ACTIVAR"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      eliminarTratamiento(
+                        servicio
+                      )
+                    }
+                    disabled={
+                      procesandoServicio ===
+                      servicio.id
+                    }
+                    className="mt-3 w-full rounded-full border border-red-200 bg-white py-3 font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                  >
+                    ELIMINAR
                   </button>
                 </div>
               )
@@ -1486,7 +1946,9 @@ function TurnoCard({
       )
       .map(
         (horario) =>
-          horario.hora
+          String(
+            horario.hora
+          ).slice(0, 5)
       );
 
   const opcionesHorario =
